@@ -1,0 +1,187 @@
+<div class="metric-card">
+                        <div class="metric-value">30+</div>
+                        <div class="metric-label">Frames Per Second</div>
+                    </div>
+
+
+
+
+
+
+div class="defect-types">
+                <h2>Supported Defect Types</h2>
+                <div class="defect-grid">
+                    <div class="defect-card">
+                        <h3>Cracks</h3>
+                        <ul>
+                            <li>Transverse cracks</li>
+                            <li>Longitudinal cracks</li>
+                            <li>Compound cracks</li>
+                            <li>Surface cracks</li>
+                        </ul>
+                    </div>
+                    <div class="defect-card">
+                        <h3>Wear</h3>
+                        <ul>
+                            <li>Rail head wear</li>
+                            <li>Side wear</li>
+                            <li>Corrugation</li>
+                            <li>Shelling</li>
+                        </ul>
+                    </div>
+                    <div class="defect-card">
+                        <h3>Deformation</h3>
+                        <ul>
+                            <li>Rail bending</li>
+                            <li>Track buckling</li>
+                            <li>Joint gaps</li>
+                            <li>Alignment issues</li>
+                        </ul>
+                    </div>
+                    <div class="defect-card">
+                        <h3>Surface Defects</h3>
+                        <ul>
+                            <li>Pitting</li>
+                            <li>Spalling</li>
+                            <li>Rolling contact fatigue</li>
+                            <li>Wheel burns</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+
+
+
+from fastapi import FastAPI, Request, UploadFile, File
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+import pandas as pd
+import numpy as np
+import gradio as gr
+import uvicorn
+import joblib
+import base64
+import io
+import traceback
+
+# ✅ Load the models
+clv_model = joblib.load("clv_model.pkl")
+churn_model = joblib.load("churn_model.pkl")
+
+# Prediction function for Gradio
+def predict_clv_churn(file):
+    df = pd.read_excel(file)
+    features = df[['age', 'income', 'tenure', 'num_purchases']]
+    df['Predicted_CLV'] = clv_model.predict(features)
+    df['Churn_Probability'] = churn_model.predict_proba(features)[:, 1]
+    return df
+
+# Initialize FastAPI
+app = FastAPI()
+
+# Mount static and templates
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/demo", response_class=HTMLResponse)
+async def demo(request: Request):
+    return templates.TemplateResponse("demo.html", {"request": request})
+
+@app.get("/about", response_class=HTMLResponse)
+async def about(request: Request):
+    return templates.TemplateResponse("about.html", {"request": request})
+
+@app.get("/technical", response_class=HTMLResponse)
+async def technical(request: Request):
+    return templates.TemplateResponse("technical.html", {"request": request})
+
+# ✅ Fix for main prediction route
+@app.post("/predict-clv-churn")
+async def predict_clv_churn_api(file: UploadFile = File(...)):
+    try:
+        # Validate file type
+        if not file.filename.endswith((".xlsx", ".xls")):
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Only Excel files are supported."}
+            )
+
+        contents = await file.read()
+        if not contents:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Uploaded file is empty."}
+            )
+
+        df = pd.read_excel(io.BytesIO(contents))
+
+        required_cols = ['age', 'income', 'tenure', 'num_purchases']
+        missing = [col for col in required_cols if col not in df.columns]
+
+        if missing:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": f"Missing columns: {', '.join(missing)}"}
+            )
+
+        features = df[required_cols]
+
+        df['Predicted_CLV'] = clv_model.predict(features)
+        df['Churn_Probability'] = churn_model.predict_proba(features)[:, 1]
+
+        results = df[['Predicted_CLV', 'Churn_Probability']].head(10).to_dict(orient="records")
+
+        return JSONResponse({"success": True, "results": results})
+
+    except Exception as e:
+        print("❌ Error in /predict-clv-churn:")
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Error processing the Excel file. Please check your file and try again."}
+        )
+
+# ✅ For full Excel download
+@app.post("/predict/")
+async def predict(file: UploadFile = File(...)):
+    contents = await file.read()
+    df = pd.read_excel(io.BytesIO(contents))
+
+    features = df[['age', 'income', 'tenure', 'num_purchases']]
+    df['Predicted_CLV'] = clv_model.predict(features)
+    df['Churn_Probability'] = churn_model.predict_proba(features)[:, 1]
+
+    output = io.BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+    encoded = base64.b64encode(output.read()).decode()
+
+    return JSONResponse({
+        "success": True,
+        "message": "Prediction successful.",
+        "excel_base64": encoded
+    })
+
+# ✅ Gradio app
+gradio_interface = gr.Interface(
+    fn=predict_clv_churn,
+    inputs=gr.File(label="Upload Excel File"),
+    outputs=gr.Dataframe(headers=["Predicted_CLV", "Churn_Probability"], type="pandas"),
+    title="CLV & Churn Predictor",
+    description="Upload a valid Excel file with customer data to get CLV and Churn predictions."
+)
+
+# ✅ Mount Gradio
+app = gr.mount_gradio_app(app, gradio_interface, path="/gradio")
+
+# ✅ Run locally
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=7860)

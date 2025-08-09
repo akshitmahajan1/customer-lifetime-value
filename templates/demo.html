@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLV Analysis - Demo</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="logo">CLV Analysis</div>
+        <div class="nav-links">
+            <a href="/">Home</a>
+            <a href="/technical">Technical</a>
+            <a href="/demo" class="active">Demo</a>
+            <a href="/about">About</a>
+        </div>
+    </nav>
+
+<!-- DEMO SECTION -->
+<section class="demo-section">
+  <div class="demo-container">
+    <div class="govt-header">
+      <img src="static\IMAGES\1701927149567.png" alt="Government Emblem" class="govt-emblem">
+      <h1>Customer Value Evaluation</h1>
+      <h2>Customer Value & Churn Prediction</h2>
+    </div>
+
+    <div class="demo-content">
+      <div class="upload-container">
+        <h3>Upload Customer Data</h3>
+        <p>Upload an Excel sheet containing customer data to predict Customer Lifetime Value (CLV) and churn risk</p>
+        <div class="upload-area" id="dropZone">
+          <div class="upload-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <p>Drag and drop your Excel file here</p>
+          <p class="upload-subtext">or</p>
+          <button class="upload-btn" id="chooseFileBtn">Choose File</button>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
+        </div>
+      </div>
+
+      <!-- Notification -->
+      <div id="notification" class="notification" style="display:none" role="alert" aria-live="polite"></div>
+
+      <!-- ✅ CLV + Churn Output Section -->
+      <div class="results-container" id="predictionResults" style="display: none;">
+        <div class="results-header">
+          <h3>📊 Customer Analysis Results</h3>
+          <p class="results-subtitle">Showing top 10 customer predictions from your data</p>
+        </div>
+
+        <div class="results-controls" aria-label="Results controls">
+          <label for="riskThreshold" class="control-label">
+            High risk threshold: <span id="riskThresholdValue">30%</span>
+          </label>
+          <input type="range" id="riskThreshold" min="15" max="60" step="5" value="30" aria-valuemin="15" aria-valuemax="60" aria-valuenow="30">
+        </div>
+
+        <div class="results-legend" aria-label="Legend">
+          <div class="legend-item"><span class="legend-swatch risk-low"></span><span>Low risk (< 10%)</span></div>
+          <div class="legend-item"><span class="legend-swatch risk-medium"></span><span>Medium risk (10% - <span id="legendHighThreshold">30%</span>)</span></div>
+          <div class="legend-item"><span class="legend-swatch risk-high"></span><span>High risk (≥ <span class="legend-high-threshold">30%</span>)</span></div>
+        </div>
+        
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+          <div class="summary-card">
+            <div class="card-icon">💰</div>
+            <div class="card-content">
+              <h4>Average CLV</h4>
+              <p class="card-value" id="avgCLV">$0</p>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="card-icon">⚠️</div>
+            <div class="card-content">
+              <h4>High Risk Customers</h4>
+              <p class="card-value" id="highRiskCount">0</p>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="card-icon">📈</div>
+            <div class="card-content">
+              <h4>Highest CLV</h4>
+              <p class="card-value" id="maxCLV">$0</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Results Table -->
+        <div class="results-table-container">
+          <table class="results-table" id="resultsTable">
+            <thead>
+              <tr>
+                <th>Customer #</th>
+                <th>Customer Lifetime Value <span class="label-badge" title="Currency">USD</span></th>
+                <th>Churn Risk <span class="label-badge" title="Probability">%</span></th>
+                <th>Risk Level</th>
+                <th>Recommendation</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Download Section -->
+        <div class="download-section">
+          <button class="download-btn" onclick="downloadResults()">
+            📥 Download Full Results
+          </button>
+          <p class="download-note">Download complete analysis for all customers in your file</p>
+        </div>
+      </div>
+
+      <div class="loading-spinner" id="loadingSpinner" style="display: none;">
+        <div class="spinner"></div>
+        <p>Analyzing customer data...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
+    <style>
+        .demo-section {
+            padding: 120px 20px 60px;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+        }
+
+        .demo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .govt-header {
+            text-align: center;
+            margin-bottom: 60px;
+            padding: 40px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 2px solid #003366;
+        }
+
+        .govt-emblem {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 50%;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            border: 2px solid #cc0000;
+        }
+
+        .govt-header h1 {
+            color: #003366;
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .govt-header h2 {
+            color: #cc0000;
+            font-size: 24px;
+            font-weight: 500;
+        }
+
+        .demo-content {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #003366;
+        }
+
+        .upload-container {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .upload-container h3 {
+            color: #003366;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        .upload-container p {
+            color: #1a365d;
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #003366;
+            border-radius: 12px;
+            padding: 40px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #cc0000;
+            background: #f8fafc;
+        }
+
+        .upload-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            color: #003366;
+        }
+
+        .upload-subtext {
+            margin: 10px 0;
+            color: #666;
+        }
+
+        .upload-btn {
+            background: #003366;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: #cc0000;
+            transform: translateY(-2px);
+        }
+
+        .image-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .image-box {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #003366;
+        }
+
+        .image-box h4 {
+            color: #003366;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .image-box img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        .defects-list {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #003366;
+        }
+
+        .defects-list h4 {
+            color: #003366;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .defects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .defect-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #003366;
+        }
+
+        .defect-item h5 {
+            color: #cc0000;
+            margin-bottom: 10px;
+        }
+
+        .defect-item p {
+            color: #1a365d;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .loading-spinner {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #cc0000;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Results Styling */
+        .results-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #003366;
+        }
+
+        .results-header h3 {
+            color: #003366;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .results-subtitle {
+            color: #666;
+            font-size: 16px;
+            margin: 0;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #003366 0%, #004080 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 15px rgba(0, 51, 102, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-icon {
+            font-size: 32px;
+            opacity: 0.9;
+        }
+
+        .card-content h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .card-value {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .results-table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .results-table th {
+            background: #003366;
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .results-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }
+
+        .results-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .clv-value {
+            font-weight: bold;
+            color: #003366;
+            font-size: 16px;
+        }
+
+        .churn-percentage {
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .risk-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .risk-low {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .risk-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .risk-high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .recommendation {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .download-section {
+            text-align: center;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 2px dashed #003366;
+        }
+
+        .download-btn {
+            background: #cc0000;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            background: #aa0000;
+            transform: translateY(-2px);
+        }
+
+        .download-note {
+            margin: 10px 0 0 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .image-comparison {
+                grid-template-columns: 1fr;
+            }
+
+            .govt-header {
+                padding: 20px;
+            }
+
+            .govt-header h1 {
+                font-size: 28px;
+            }
+
+            .govt-header h2 {
+                font-size: 20px;
+            }
+
+            .demo-content {
+                padding: 20px;
+            }
+
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .results-table {
+                font-size: 14px;
+            }
+
+            .results-table th,
+            .results-table td {
+                padding: 8px 6px;
+            }
+        }
+
+        /* Enhancements */
+        .label-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 11px;
+            background: #eef2f7;
+            color: #003366;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            vertical-align: middle;
+            margin-left: 6px;
+        }
+
+        .results-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            margin: 16px 0 24px;
+        }
+
+        .results-controls input[type="range"] {
+            width: 220px;
+        }
+
+        .control-label {
+            font-weight: 600;
+            color: #003366;
+        }
+
+        .results-legend {
+            display: flex;
+            gap: 18px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            color: #1a365d;
+        }
+
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .legend-swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid #cbd5e1; }
+
+        /* Override to allow scrolling table with sticky header */
+        .results-table-container { max-height: 520px; overflow: auto; }
+        .results-table thead th { position: sticky; top: 0; z-index: 1; }
+
+        /* Churn visuals */
+        .churn-cell { display: flex; align-items: center; gap: 10px; }
+        .progress { width: 140px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+        .progress-bar { height: 100%; background: #93c5fd; }
+        .churn-low { background: #22c55e !important; color: #14532d; }
+        .churn-medium { background: #f59e0b !important; color: #7c2d12; }
+        .churn-high { background: #ef4444 !important; color: #7f1d1d; }
+
+        /* Notifications */
+        .notification { display: none; margin: 16px 0; padding: 12px 16px; border-radius: 10px; border: 1px solid; font-weight: 500; }
+        .notification.info { background: #eff6ff; color: #1e3a8a; border-color: #93c5fd; }
+        .notification.success { background: #ecfdf5; color: #065f46; border-color: #34d399; }
+        .notification.error { background: #fef2f2; color: #7f1d1d; border-color: #fecaca; }
+    </style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const chooseFileBtn = document.getElementById('chooseFileBtn');
+    const resultsContainer = document.getElementById('predictionResults');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const notificationEl = document.getElementById('notification');
+
+    // Controls
+    const riskThresholdInput = document.getElementById('riskThreshold');
+    const riskThresholdValue = document.getElementById('riskThresholdValue');
+    const legendHighThresholdEl = document.getElementById('legendHighThreshold');
+    const legendHighThresholdEls = document.querySelectorAll('.legend-high-threshold');
+
+    // State
+    let highRiskThreshold = 0.30; // default 30%
+    let rowsData = [];
+
+    // Helpers
+    function showNotification(type, message) {
+      notificationEl.textContent = message;
+      notificationEl.className = `notification ${type}`;
+      notificationEl.style.display = 'block';
+      clearTimeout(showNotification._t);
+      showNotification._t = setTimeout(() => {
+        notificationEl.style.display = 'none';
+      }, 5000);
+    }
+
+    function formatCurrency(value) {
+      const num = Number(value) || 0;
+      return `$${num.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+    }
+
+    function formatPercent(prob) {
+      return `${(Number(prob) * 100).toFixed(1)}%`;
+    }
+
+    function getRiskInfo(churnProb) {
+      if (churnProb < 0.10) {
+        return { level: 'Low', className: 'risk-low', recommendation: 'Maintain engagement with regular communication' };
+      } else if (churnProb < highRiskThreshold) {
+        return { level: 'Medium', className: 'risk-medium', recommendation: 'Offer loyalty programs and personalized offers' };
+      }
+      return { level: 'High', className: 'risk-high', recommendation: 'Immediate intervention required - priority support' };
+    }
+
+    function updateSummary() {
+      if (!rowsData.length) return;
+      const clvValues = rowsData.map(r => Number(r.Predicted_CLV));
+      const churnValues = rowsData.map(r => Number(r.Churn_Probability));
+      const avgCLV = clvValues.reduce((a, b) => a + b, 0) / clvValues.length;
+      const maxCLV = Math.max(...clvValues);
+      const highRiskCount = churnValues.filter(p => p >= highRiskThreshold).length;
+      document.getElementById('avgCLV').textContent = formatCurrency(avgCLV);
+      document.getElementById('maxCLV').textContent = formatCurrency(maxCLV);
+      document.getElementById('highRiskCount').textContent = `${highRiskCount} of ${rowsData.length}`;
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('resultsTableBody');
+      tbody.innerHTML = '';
+      rowsData.forEach((row, index) => {
+        const clv = Number(row.Predicted_CLV);
+        const churnProb = Number(row.Churn_Probability);
+        const churnPercent = (churnProb * 100).toFixed(1);
+        const risk = getRiskInfo(churnProb);
+        const churnClass = churnProb < 0.10 ? 'churn-low' : (churnProb < highRiskThreshold ? 'churn-medium' : 'churn-high');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>#${index + 1}</strong></td>
+          <td><span class="clv-value">${formatCurrency(clv)}</span></td>
+          <td>
+            <div class="churn-cell">
+              <div class="progress"><div class="progress-bar ${churnClass}" style="width:${churnPercent}%"></div></div>
+              <span class="churn-percentage ${churnClass}">${churnPercent}%</span>
+            </div>
+          </td>
+          <td><span class="risk-badge ${risk.className}">${risk.level}</span></td>
+          <td><span class="recommendation">${risk.recommendation}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderAll() {
+      updateSummary();
+      renderTable();
+      resultsContainer.style.display = 'block';
+    }
+
+    // Controls events
+    if (riskThresholdInput) {
+      riskThresholdInput.addEventListener('input', () => {
+        const val = parseInt(riskThresholdInput.value, 10) || 30;
+        highRiskThreshold = val / 100;
+        riskThresholdValue.textContent = `${val}%`;
+        if (legendHighThresholdEl) legendHighThresholdEl.textContent = `${val}%`;
+        legendHighThresholdEls.forEach(el => el.textContent = `${val}%`);
+        renderAll();
+      });
+    }
+
+    // File controls
+    chooseFileBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFileSelect);
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#4338ca';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.borderColor = '#4f46e5';
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#4f46e5';
+      const files = e.dataTransfer.files;
+      if (files.length) handleFile(files[0]);
+    });
+
+    function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    }
+
+    function handleFile(file) {
+      const allowedTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'application/octet-stream',
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        showNotification('error', 'Please upload a valid Excel file (.xlsx or .xls)');
+        return;
+      }
+
+      resultsContainer.style.display = 'none';
+      loadingSpinner.style.display = 'block';
+      const formData = new FormData();
+      formData.append('file', file);
+
+      fetch('/predict-clv-churn', { method: 'POST', body: formData })
+        .then(async (response) => {
+          loadingSpinner.style.display = 'none';
+          if (!response.ok) {
+            showNotification('error', 'Server returned an error. Please check your file or try again.');
+            return null;
+          }
+          try {
+            return await response.json();
+          } catch (err) {
+            showNotification('error', 'Invalid response from server.');
+            return null;
+          }
+        })
+        .then((data) => {
+          if (!data || !data.success || !data.results) {
+            if (data && data.error) showNotification('error', data.error);
+            else showNotification('error', 'Failed to process the file.');
+            return;
+          }
+          rowsData = data.results;
+          window.analysisData = data; // for export
+          renderAll();
+        })
+        .catch((error) => {
+          console.error('Fetch error:', error);
+          loadingSpinner.style.display = 'none';
+          showNotification('error', 'An error occurred while processing the file. Please try again.');
+        });
+    }
+
+    // Download functionality (export CSV)
+    window.downloadResults = function () {
+      if (!window.analysisData || !Array.isArray(window.analysisData.results)) {
+        showNotification('info', 'No data available to download.');
+        return;
+      }
+      const data = window.analysisData.results;
+      let csvContent = 'Customer Number,Customer Lifetime Value,Churn Probability,Risk Level,Recommendation\n';
+      data.forEach((row, index) => {
+        const clv = Number(row.Predicted_CLV);
+        const churnProb = Number(row.Churn_Probability);
+        const risk = getRiskInfo(churnProb);
+        csvContent += `${index + 1},"${formatCurrency(clv)}",${formatPercent(churnProb)},${risk.level},"${risk.recommendation}"\n`;
+      });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = 'customer_analysis_results.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+  });
+</script>
+
+</body>
+</html>
